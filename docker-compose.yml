@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # commute2invoice バックエンドサービス
+  app:
+    # イメージのビルド
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # コンテナ名
+    container_name: commute2invoice-app
+
+    # ポートマッピング
+    # ホストの 8080 → コンテナの 8080
+    ports:
+      - "8080:8080"
+
+    # 環境変数
+    environment:
+      # Go アプリケーション用
+      GIN_MODE: debug          # 開発時は debug（本番は release）
+      PORT: 8080
+      SERVER_HOST: 0.0.0.0
+      DB_PATH: /data/commute2invoice.db
+      LOG_LEVEL: info
+
+    # ボリュームマウント
+    volumes:
+      # DB ファイルを永続化（ホスト側の ./data にマウント）
+      - ./data:/data
+      # ソースコード をマウント（開発時のホットリロード対応予定）
+      # - .:/app
+
+    # コンテナの再起動ポリシー
+    restart: unless-stopped
+
+    # ロギング設定
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # フロントエンド用の簡易HTTPサーバー（TODO: 将来実装）
+  # frontend:
+  #   image: nginx:alpine
+  #   container_name: commute2invoice-frontend
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - ./frontend:/usr/share/nginx/html
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     - app
+
+# 名前付きボリューム（DB永続化用）
+volumes:
+  data:
+
+# ネットワーク定義（複数サービス間の通信用）
+networks:
+  default:
+    name: commute2invoice-network
+    driver: bridge

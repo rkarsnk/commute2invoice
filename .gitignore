@@ -28,5 +28,21 @@ go.work.sum
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Database and data files
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Application binary
+commute2invoice
+
+# Logs
+*.log

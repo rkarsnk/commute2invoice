@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>交通費精算Webアプリ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 0.5rem;
+    }
+    .calendar-day {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 4.5rem;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      font-size: 1.25rem;
+    }
+    .calendar-day:hover {
+      background-color: #f3f4f6;
+    }
+    .calendar-day.has-trips {
+      background-color: #fef3c7;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div id="app" class="min-h-screen flex flex-col">
+    <!-- ヘッダー -->
+    <header class="bg-blue-600 text-white p-4 shadow">
+      <div class="max-w-6xl mx-auto">
+        <h1 class="text-2xl font-bold">交通費精算Webアプリ</h1>
+        <p class="text-sm mt-1">運賃区間の管理と月別請求書生成</p>
+      </div>
+    </header>
+
+    <!-- メインコンテナ -->
+    <main class="flex-1 max-w-6xl mx-auto w-full p-6 space-y-6">
+      <div id="error-message" role="alert" class="hidden rounded border border-red-300 bg-red-50 p-4 text-red-800"></div>
+      <!-- ナビゲーション -->
+      <div class="flex gap-2 border-b">
+        <button
+          onclick="showScreen('calendar')"
+          class="px-4 py-2 font-medium border-b-2 border-blue-600 text-blue-600"
+        >
+          カレンダー
+        </button>
+        <button
+          onclick="showScreen('invoice')"
+          class="px-4 py-2 font-medium border-b-2 border-transparent text-gray-600 hover:text-gray-900"
+        >
+          請求書
+        </button>
+        <button
+          onclick="showScreen('setup')"
+          class="px-4 py-2 font-medium border-b-2 border-transparent text-gray-600 hover:text-gray-900"
+        >
+          運賃区間設定
+        </button>
+      </div>
+
+      <!-- スクリーン：カレンダー -->
+      <div id="calendar-screen" class="space-y-4">
+        <div class="bg-white rounded-lg shadow p-6">
+          <!-- 年月選択 -->
+          <div class="flex gap-4 mb-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">年</label>
+              <select id="calendar-year" onchange="updateCalendar()" class="mt-1 p-2 border rounded">
+                <option value="2024">2024年</option>
+                <option value="2025">2025年</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">月</label>
+              <select id="calendar-month" onchange="updateCalendar()" class="mt-1 p-2 border rounded">
+                <option value="1">1月</option>
+                <option value="2">2月</option>
+                <option value="3">3月</option>
+                <option value="4">4月</option>
+                <option value="5">5月</option>
+                <option value="6">6月</option>
+                <option value="7">7月</option>
+                <option value="8">8月</option>
+                <option value="9">9月</option>
+                <option value="10">10月</option>
+                <option value="11">11月</option>
+                <option value="12">12月</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- カレンダー表示 -->
+          <div class="bg-white rounded-lg p-4 border">
+            <div class="calendar-grid mb-6">
+              <div class="font-bold text-center">日</div>
+              <div class="font-bold text-center">月</div>
+              <div class="font-bold text-center">火</div>
+              <div class="font-bold text-center">水</div>
+              <div class="font-bold text-center">木</div>
+              <div class="font-bold text-center">金</div>
+              <div class="font-bold text-center">土</div>
+              <!-- カレンダーの日付がここに挿入される -->
+              <div id="calendar-days" class="contents"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 選択日の Trip 表示 -->
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-bold mb-4" id="selected-date-display">日付を選択してください</h3>
+          <p id="confirmed-month-notice" class="hidden mb-4 rounded border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800"></p>
+
+          <div id="trips-list" class="space-y-3">
+            <!-- Trip 一覧がここに表示される -->
+          </div>
+
+          <!-- Trip 追加フォーム -->
+          <div id="trip-form" style="display: none" class="mt-6 pt-6 border-t">
+            <h4 class="font-bold mb-3">新しいトリップを追加</h4>
+            <form onsubmit="addTrip(event)" class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">運賃区間</label>
+                <select id="fare-evidence-select" class="mt-1 w-full p-2 border rounded" required>
+                  <option value="">選択してください</option>
+                </select>
+              </div>
+              <div class="flex gap-4">
+                <label class="flex items-center">
+                  <input type="checkbox" id="round-trip-check" class="w-4 h-4 mr-2" />
+                  <span class="text-sm">往復</span>
+                </label>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">精算先</label>
+                <select id="billing-target-select" class="mt-1 w-full p-2 border rounded" required>
+                  <option value="自社">自社</option>
+                  <option value="客先">客先</option>
+                </select>
+              </div>
+              <button
+                type="submit"
+                class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                追加
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- スクリーン：請求書 -->
+      <div id="invoice-screen" style="display: none" class="space-y-4">
+        <div class="bg-white rounded-lg shadow p-6">
+          <!-- 年月・精算先選択 -->
+          <div class="flex gap-4 mb-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">年</label>
+              <select id="invoice-year" onchange="updateInvoicePreview()" class="mt-1 p-2 border rounded">
+                <option value="2024">2024年</option>
+                <option value="2025">2025年</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">月</label>
+              <select id="invoice-month" onchange="updateInvoicePreview()" class="mt-1 p-2 border rounded">
+                <option value="1">1月</option>
+                <option value="2">2月</option>
+                <option value="3">3月</option>
+                <option value="4">4月</option>
+                <option value="5">5月</option>
+                <option value="6">6月</option>
+                <option value="7">7月</option>
+                <option value="8">8月</option>
+                <option value="9">9月</option>
+                <option value="10">10月</option>
+                <option value="11">11月</option>
+                <option value="12">12月</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">精算先</label>
+              <select id="invoice-billing-target" onchange="updateInvoicePreview()" class="mt-1 p-2 border rounded">
+                <option value="自社">自社</option>
+                <option value="客先">客先</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 請求書プレビュー -->
+          <div id="invoice-preview" class="space-y-4">
+            <!-- プレビューデータがここに表示される -->
+          </div>
+
+          <!-- 確定ボタン -->
+          <div class="mt-6 flex gap-2">
+            <button
+              onclick="confirmInvoice()"
+              class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            >
+              請求書を確定
+            </button>
+            <button
+              onclick="downloadInvoicePDF()"
+              class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              PDF をダウンロード
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- スクリーン：運賃区間設定 -->
+      <div id="setup-screen" style="display: none" class="space-y-4">
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 id="fare-form-title" class="text-lg font-bold mb-4">運賃区間情報を登録</h3>
+
+          <form id="fare-form" onsubmit="showFareConfirmation(event)" class="space-y-4" autocomplete="off">
+            <!-- ステップ1: 画像アップロード -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700">証跡画像</label>
+              <input
+                type="file"
+                id="fare-image"
+                accept="image/*"
+                class="mt-1 p-2 border rounded w-full"
+              />
+              <div id="fare-image-preview" class="mt-2 max-w-xs"></div>
+            </div>
+
+            <!-- ステップ2: 情報入力 -->
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">ラベル</label>
+                <input
+                  type="text"
+                  id="fare-label"
+                  name="commute-route-label"
+                  placeholder="例：東京駅-駅名"
+                  class="mt-1 w-full p-2 border rounded"
+                  autocomplete="off"
+                  data-1p-ignore="true"
+                  data-lpignore="true"
+                  required
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">事業者</label>
+                <input
+                  type="text"
+                  id="fare-company"
+                  name="commute-railway-company"
+                  placeholder="例：JR東日本"
+                  class="mt-1 w-full p-2 border rounded"
+                  autocomplete="off"
+                  data-1p-ignore="true"
+                  data-lpignore="true"
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">乗車駅</label>
+                <input
+                  type="text"
+                  id="fare-from"
+                  name="commute-origin-station"
+                  placeholder="例：東京駅"
+                  class="mt-1 w-full p-2 border rounded"
+                  autocomplete="off"
+                  data-1p-ignore="true"
+                  data-lpignore="true"
+                  required
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">下車駅</label>
+                <input
+                  type="text"
+                  id="fare-to"
+                  name="commute-destination-station"
+                  placeholder="例：渋谷駅"
+                  class="mt-1 w-full p-2 border rounded"
+                  autocomplete="off"
+                  data-1p-ignore="true"
+                  data-lpignore="true"
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">片道運賃（円）</label>
+                <input
+                  type="number"
+                  id="fare-oneway"
+                  placeholder="200"
+                  class="mt-1 w-full p-2 border rounded"
+                  required
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">往復運賃（円、省略可）</label>
+                <input
+                  type="number"
+                  id="fare-roundtrip"
+                  placeholder="400"
+                  class="mt-1 w-full p-2 border rounded"
+                />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700">有効開始日</label>
+                <input
+                  type="date"
+                  id="fare-valid-from"
+                  class="mt-1 w-full p-2 border rounded"
+                  required
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">有効終了日（省略可）</label>
+                <input type="date" id="fare-valid-until" class="mt-1 w-full p-2 border rounded" />
+              </div>
+            </div>
+
+            <!-- ステップ3: 確認・送信 -->
+            <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-medium">登録内容を確認</button>
+          </form>
+
+          <dialog id="fare-confirm-dialog" class="w-full max-w-lg rounded-lg p-0 shadow-xl backdrop:bg-black/40">
+            <div class="p-6">
+              <h4 class="text-lg font-bold">登録内容の確認</h4>
+              <p class="mt-2 text-sm text-gray-600">以下の内容で運賃区間を登録します。</p>
+              <div id="fare-confirmation-details" class="mt-4 rounded bg-gray-50 p-4"></div>
+              <div class="mt-6 flex justify-end gap-2">
+                <button type="button" onclick="document.getElementById('fare-confirm-dialog').close()" class="rounded bg-gray-200 px-4 py-2 hover:bg-gray-300">戻って修正</button>
+                <button type="button" onclick="addFareEvidence()" class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">この内容で登録</button>
+              </div>
+            </div>
+          </dialog>
+
+          <!-- 登録済み運賃区間一覧 -->
+          <div class="mt-8 pt-6 border-t">
+            <h4 class="font-bold mb-4">登録済み運賃区間</h4>
+            <div id="fare-list" class="space-y-2">
+              <!-- リストがここに表示される -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let selectedDate = null;
+    let currentInvoicePreview = null;
+    let currentCalendar = null;
+
+    const errorMessages = {
+      MISSING_PARAM: '必要な入力項目が不足しています。',
+      INVALID_PARAM: '年月または日付の指定が正しくありません。',
+      INVALID_REQUEST: '入力内容を確認してください。',
+      CREATE_FAILED: '登録できませんでした。入力内容を確認して、もう一度お試しください。',
+      UPDATE_FAILED: '更新できませんでした。入力内容を確認して、もう一度お試しください。',
+      DELETE_FAILED: '削除できませんでした。もう一度お試しください。',
+      PREVIEW_FAILED: '請求書プレビューを表示できませんでした。',
+      CONFIRM_FAILED: '請求書を確定できませんでした。利用実績が登録されているか確認してください。',
+      NOT_FOUND: '指定されたデータは見つかりませんでした。',
+    };
+
+    function userErrorMessage(error) {
+      if (error && error.code && errorMessages[error.code]) return errorMessages[error.code];
+      if (error instanceof TypeError) return '通信または受信データに問題があります。ページを再読み込みして、もう一度お試しください。';
+      return '処理に失敗しました。時間をおいてもう一度お試しください。';
+    }
+
+    function showError(error) {
+      console.error(error);
+      const message = userErrorMessage(error);
+      const element = document.getElementById('error-message');
+      element.textContent = message;
+      element.classList.remove('hidden');
+      return message;
+    }
+
+    function clearError() {
+      document.getElementById('error-message').classList.add('hidden');
+    }
+
+    function escapeHTML(value) {
+      const element = document.createElement('div');
+      element.textContent = String(value ?? '');
+      return element.innerHTML;
+    }
+
+    async function apiFetch(url, options) {
+      let response;
+      try {
+        response = await fetch(url, options);
+      } catch (cause) {
+        const error = new Error('Network request failed');
+        error.cause = cause;
+        throw error;
+      }
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        const error = new Error(body.error || `Request failed (${response.status})`);
+        error.code = body.code;
+        throw error;
+      }
+      return response;
+    }
+
+    // 画面の切り替え
+    function showScreen(screenName) {
+      document.getElementById('calendar-screen').style.display = 'none';
+      document.getElementById('invoice-screen').style.display = 'none';
+      document.getElementById('setup-screen').style.display = 'none';
+
+      if (screenName === 'calendar') document.getElementById('calendar-screen').style.display = 'block';
+      if (screenName === 'invoice') document.getElementById('invoice-screen').style.display = 'block';
+      if (screenName === 'setup') document.getElementById('setup-screen').style.display = 'block';
+
+      if (screenName === 'invoice') updateInvoicePreview();
+      if (screenName === 'setup') loadFareEvidences();
+    }
+
+    // カレンダーを更新
+    async function updateCalendar() {
+      const year = document.getElementById('calendar-year').value;
+      const month = document.getElementById('calendar-month').value;
+
+      document.getElementById('calendar-days').innerHTML = '<p class="col-span-7 text-gray-500">カレンダーを読み込み中です...</p>';
+      try {
+        clearError();
+        const response = await apiFetch(`/calendar?year=${year}&month=${month}`);
+        const calendar = await response.json();
+        currentCalendar = calendar;
+        const firstWeekday = new Date(year, Number(month) - 1, 1).getDay();
+        let daysHTML = '<div></div>'.repeat(firstWeekday);
+        for (const day of calendar.days) {
+          const status = day.invoiceStatus;
+          const confirmed = [
+            status['自社'] ? '自社確定' : '',
+            status['客先'] ? '客先確定' : '',
+          ].filter(Boolean).join(' / ');
+          daysHTML += `<button type="button" class="calendar-day ${day.tripCount ? 'has-trips' : ''}" onclick="selectDate('${day.date}')"
+            title="${confirmed || '未確定'}">${Number(day.date.slice(-2))}${day.tripCount ? `<span class="ml-1 text-xs">(${day.tripCount})</span>` : ''}</button>`;
+        }
+        document.getElementById('calendar-days').innerHTML = daysHTML;
+      } catch (error) {
+        document.getElementById('calendar-days').innerHTML = `<p class="col-span-7 text-red-600">${showError(error)}</p>`;
+      }
+    }
+
+    // 日付をクリック
+    async function selectDate(date) {
+      selectedDate = date;
+      document.getElementById('selected-date-display').innerText = `${date} のトリップ`;
+      document.getElementById('trip-form').style.display = 'block';
+      const day = currentCalendar?.days?.find((item) => item.date === date);
+      const confirmedTargets = day
+        ? Object.entries(day.invoiceStatus).filter(([, confirmed]) => confirmed).map(([target]) => target)
+        : [];
+      const notice = document.getElementById('confirmed-month-notice');
+      if (confirmedTargets.length) {
+        notice.textContent = `この月の${confirmedTargets.join('・')}請求書は確定済みです。トリップを変更しても、確定済みPDFには自動反映されません。`;
+        notice.classList.remove('hidden');
+      } else {
+        notice.classList.add('hidden');
+      }
+      try {
+        const [tripsResponse, faresResponse] = await Promise.all([
+          apiFetch(`/calendar/${date}/trips`),
+          apiFetch(`/setup/fare-evidence?date=${date}`),
+        ]);
+        const { trips: tripData } = await tripsResponse.json();
+        const { fare_evidences: fareData } = await faresResponse.json();
+        const trips = Array.isArray(tripData) ? tripData : [];
+        const fares = Array.isArray(fareData) ? fareData : [];
+        document.getElementById('trips-list').innerHTML = trips.length
+          ? trips.map((detail) => {
+            const trip = detail.trip;
+            const fare = detail.fareEvidence;
+            const fareAmount = trip.roundTrip
+              ? (fare.fareRoundtrip || fare.fareOneway * 2)
+              : fare.fareOneway;
+            return `<div class="border rounded p-3"><div class="flex items-center justify-between gap-3"><div><p class="font-medium">${fare.label}</p><p class="text-sm text-gray-600">${fare.companyText}: ${fare.fromText} - ${fare.toText} / ${trip.roundTrip ? '往復' : '片道'} ${fareAmount.toLocaleString()}円 / ${trip.billingTarget}</p></div><button type="button" class="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700" onclick="deleteTrip(${trip.id})">削除</button></div><form class="mt-3 flex items-center gap-3 border-t pt-3" onsubmit="updateTrip(event, ${trip.id})"><label class="flex items-center text-sm"><input name="roundTrip" type="checkbox" class="mr-1" ${trip.roundTrip ? 'checked' : ''}>往復</label><select name="billingTarget" class="rounded border p-1 text-sm"><option value="自社" ${trip.billingTarget === '自社' ? 'selected' : ''}>自社</option><option value="客先" ${trip.billingTarget === '客先' ? 'selected' : ''}>客先</option></select><button type="submit" class="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700">変更</button></form></div>`;
+          }).join('')
+          : '<p class="text-gray-500">登録済みの利用実績はありません。</p>';
+        document.getElementById('fare-evidence-select').innerHTML =
+          '<option value="">選択してください</option>' +
+          fares.map((fare) => `<option value="${fare.id}">${fare.label} (${fare.fareOneway.toLocaleString()}円)</option>`).join('');
+      } catch (error) {
+        document.getElementById('trips-list').innerHTML = `<p class="text-red-600">${showError(error)}</p>`;
+      }
+    }
+
+    // Trip を追加
+    async function addTrip(event) {
+      event.preventDefault();
+      const fareEvidenceId = document.getElementById('fare-evidence-select').value;
+      const roundTrip = document.getElementById('round-trip-check').checked;
+      const billingTarget = document.getElementById('billing-target-select').value;
+
+      if (!selectedDate) return;
+      try {
+        await apiFetch(`/calendar/${selectedDate}/trips`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fareEvidenceId: Number(fareEvidenceId), roundTrip, billingTarget }),
+        });
+        event.target.reset();
+        await selectDate(selectedDate);
+        await updateCalendar();
+      } catch (error) {
+        alert(showError(error));
+      }
+    }
+
+    async function deleteTrip(id) {
+      if (!selectedDate || !window.confirm('この利用実績を削除しますか？')) return;
+
+      try {
+        await apiFetch(`/trips/${id}`, { method: 'DELETE' });
+        await selectDate(selectedDate);
+        await updateCalendar();
+      } catch (error) {
+        alert(showError(error));
+      }
+    }
+
+    async function updateTrip(event, id) {
+      event.preventDefault();
+      try {
+        await apiFetch(`/trips/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roundTrip: event.currentTarget.elements.roundTrip.checked,
+            billingTarget: event.currentTarget.elements.billingTarget.value,
+          }),
+        });
+        await selectDate(selectedDate);
+        await updateCalendar();
+      } catch (error) {
+        alert(showError(error));
+      }
+    }
+
+    // 請求書プレビューを更新
+    async function updateInvoicePreview() {
+      const year = document.getElementById('invoice-year').value;
+      const month = document.getElementById('invoice-month').value;
+      const billingTarget = document.getElementById('invoice-billing-target').value;
+
+      document.getElementById('invoice-preview').innerHTML = '<p class="text-gray-500">請求書プレビューを読み込み中です...</p>';
+      try {
+        const response = await apiFetch(`/invoices/preview?year=${year}&month=${month}&billing_target=${encodeURIComponent(billingTarget)}`);
+        const preview = await response.json();
+        currentInvoicePreview = preview;
+        const invoiceLines = Array.isArray(preview.invoiceLines) ? preview.invoiceLines : [];
+        const rows = invoiceLines.map((line) => `<tr class="border-b border-gray-200"><td class="p-2">${line.date}</td><td class="p-2">${line.companyText}</td><td class="p-2">${line.fromText}</td><td class="p-2">${line.toText}</td><td class="p-2 text-right">${line.fareOneway.toLocaleString()}円</td><td class="p-2 text-right">${line.fare.toLocaleString()}円</td></tr>`).join('');
+        document.getElementById('invoice-preview').innerHTML = invoiceLines.length
+          ? `<div class="flex items-center justify-between"><h3 class="text-lg font-bold">${year}年${month}月 ${billingTarget}精算</h3><span class="rounded px-2 py-1 text-sm ${preview.status === 'confirmed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">${preview.status === 'confirmed' ? `確定済み: ${preview.confirmedAt}` : '未確定プレビュー'}</span></div><div class="overflow-x-auto"><table class="mt-4 w-full border border-gray-300 border-collapse text-sm"><thead class="bg-gray-100"><tr><th class="border border-gray-300 p-2 text-left">利用日</th><th class="border border-gray-300 p-2 text-left">鉄道会社</th><th class="border border-gray-300 p-2 text-left">乗車駅</th><th class="border border-gray-300 p-2 text-left">降車駅</th><th class="border border-gray-300 p-2 text-right">片道運賃</th><th class="border border-gray-300 p-2 text-right">交通費</th></tr></thead><tbody>${rows}</tbody><tfoot class="bg-gray-100 font-bold"><tr><th class="p-2 text-right" colspan="5">合計</th><th class="p-2 text-right">${preview.totalFare.toLocaleString()}円</th></tr></tfoot></table></div>`
+          : '<p class="text-gray-500">対象データがありません。</p>';
+      } catch (error) {
+        document.getElementById('invoice-preview').innerHTML = `<p class="text-red-600">${showError(error)}</p>`;
+      }
+    }
+
+    // 請求書を確定
+    async function confirmInvoice() {
+      const year = document.getElementById('invoice-year').value;
+      const month = document.getElementById('invoice-month').value;
+      const billingTarget = document.getElementById('invoice-billing-target').value;
+
+      if (currentInvoicePreview?.status === 'confirmed' &&
+        !window.confirm(`前回確定分（${currentInvoicePreview.confirmedAt}）を上書きして再生成します。よろしいですか？`)) {
+        return;
+      }
+
+      try {
+        const response = await apiFetch('/invoices/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ year: Number(year), month: Number(month), billingTarget }),
+        });
+        const invoice = await response.json();
+        alert(`請求書を確定しました: ${invoice.confirmedAt}`);
+        await updateInvoicePreview();
+        await updateCalendar();
+      } catch (error) {
+        alert(showError(error));
+      }
+    }
+
+    // 請求書PDF をダウンロード
+    async function downloadInvoicePDF() {
+      const year = document.getElementById('invoice-year').value;
+      const month = document.getElementById('invoice-month').value;
+      const billingTarget = document.getElementById('invoice-billing-target').value;
+
+      try {
+        const response = await apiFetch(`/invoices/${year}/${month}/${encodeURIComponent(billingTarget)}/pdf`);
+        const url = URL.createObjectURL(await response.blob());
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `invoice-${year}-${String(month).padStart(2, '0')}-${billingTarget}.pdf`;
+        link.click();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        alert(showError(error));
+      }
+    }
+
+    async function loadFareEvidences() {
+      const list = document.getElementById('fare-list');
+      list.innerHTML = '<p class="text-gray-500">登録済み運賃区間を読み込み中です...</p>';
+      try {
+        const response = await apiFetch('/fare-evidences');
+        const { fare_evidences: fareData } = await response.json();
+        const fares = Array.isArray(fareData) ? fareData : [];
+        list.innerHTML = fares.length
+          ? fares.map((fare) => `<div class="rounded border border-gray-200 p-3"><div class="flex items-center justify-between gap-3"><div><p class="font-medium">${fare.label}</p><p class="text-sm text-gray-600">${fare.companyText}: ${fare.fromText} - ${fare.toText} / 片道 ${fare.fareOneway.toLocaleString()}円</p><p class="text-sm text-gray-500">有効期間: ${fare.validFrom} - ${fare.validUntil || '終了日なし'}</p></div><button type="button" class="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700" onclick="deleteFareEvidence(${fare.id})">削除</button></div><form class="mt-3 flex items-end gap-2 border-t pt-3" onsubmit="updateFareValidity(event, ${fare.id})"><label class="block text-sm font-medium text-gray-700">有効終了日<input name="validUntil" type="date" value="${fare.validUntil || ''}" class="mt-1 block rounded border p-2"></label><button type="submit" class="rounded bg-gray-600 px-3 py-2 text-sm text-white hover:bg-gray-700">終了日を更新</button><span class="pb-2 text-xs text-gray-500">空欄で終了日を解除</span></form></div>`).join('')
+          : '<p class="text-gray-500">登録済みの運賃区間はありません。</p>';
+      } catch (error) {
+        list.innerHTML = `<p class="text-red-600">${showError(error)}</p>`;
+      }
+    }
+
+    async function deleteFareEvidence(id) {
+      if (!window.confirm('この運賃区間を削除しますか？利用実績に使用されている区間は削除できません。')) return;
+
+      try {
+        await apiFetch(`/fare-evidences/${id}`, { method: 'DELETE' });
+        await loadFareEvidences();
+      } catch (error) {
+        alert(showError(error));
+      }
+    }
+
+    async function updateFareValidity(event, id) {
+      event.preventDefault();
+      const validUntil = event.currentTarget.elements.validUntil.value;
+      try {
+        await apiFetch(`/fare-evidences/${id}/validity`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ validUntil: validUntil === '' ? null : validUntil }),
+        });
+        await loadFareEvidences();
+        await updateCalendar();
+        alert('有効終了日を更新しました。');
+      } catch (error) {
+        alert(showError(error));
+      }
+    }
+
+    // 運賃区間を追加
+    function showFareConfirmation(event) {
+      event.preventDefault();
+      const file = document.getElementById('fare-image').files[0];
+      if (!file) {
+        alert('証跡画像を選択してください。');
+        return;
+      }
+      const preview = document.querySelector('#fare-image-preview img');
+      const imagePreview = preview ? `<img src="${preview.src}" alt="証跡画像プレビュー" class="mb-4 max-h-64 rounded">` : '';
+      document.getElementById('fare-confirmation-details').innerHTML = `${imagePreview}<dl class="grid grid-cols-2 gap-2 text-sm"><dt>ラベル</dt><dd>${document.getElementById('fare-label').value}</dd><dt>事業者</dt><dd>${document.getElementById('fare-company').value}</dd><dt>経路</dt><dd>${document.getElementById('fare-from').value} - ${document.getElementById('fare-to').value}</dd><dt>片道運賃</dt><dd>${document.getElementById('fare-oneway').value}円</dd><dt>往復運賃</dt><dd>${document.getElementById('fare-roundtrip').value || '片道の2倍'}</dd><dt>有効期間</dt><dd>${document.getElementById('fare-valid-from').value} - ${document.getElementById('fare-valid-until').value || '終了日なし'}</dd></dl>`;
+      document.getElementById('fare-confirm-dialog').showModal();
+    }
+
+    async function addFareEvidence() {
+      document.getElementById('fare-confirm-dialog').close();
+
+      const fileInput = document.getElementById('fare-image');
+      const label = document.getElementById('fare-label').value;
+      const company = document.getElementById('fare-company').value;
+      const from = document.getElementById('fare-from').value;
+      const to = document.getElementById('fare-to').value;
+      const oneway = parseInt(document.getElementById('fare-oneway').value);
+      const roundtrip = document.getElementById('fare-roundtrip').value
+        ? parseInt(document.getElementById('fare-roundtrip').value)
+        : null;
+      const validFrom = document.getElementById('fare-valid-from').value;
+      const validUntil = document.getElementById('fare-valid-until').value || null;
+
+      const files = fileInput?.files;
+      if (!files || files.length === 0) {
+        alert('証跡画像を選択してください。');
+        return;
+      }
+
+      const file = files[0];
+      const reader = new FileReader();
+
+      reader.onload = async function (e) {
+        const imageBase64 = e.target.result.split(',')[1];
+
+        try {
+          await apiFetch('/setup/fare-evidence', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageId: file.name,
+              imageMime: file.type,
+              imageData: imageBase64,
+              label,
+              companyText: company,
+              fromText: from,
+              toText: to,
+              fareOneway: oneway,
+              fareRoundtrip: roundtrip,
+              validFrom,
+              validUntil,
+            }),
+          });
+          document.getElementById('fare-form').reset();
+          document.getElementById('fare-image-preview').innerHTML = '';
+          await loadFareEvidences();
+          alert('運賃区間を登録しました。');
+        } catch (error) {
+          alert(showError(error));
+        }
+      };
+
+      reader.readAsDataURL(file);
+    }
+
+
+    // 画像プレビュー
+    document.getElementById('fare-image').addEventListener('change', function (event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const img = document.createElement('img');
+          img.src = e.target.result;
+          img.style.maxWidth = '200px';
+          img.style.borderRadius = '0.375rem';
+          img.style.marginTop = '0.5rem';
+          document.getElementById('fare-image-preview').innerHTML = '';
+          document.getElementById('fare-image-preview').appendChild(img);
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // 初期化
+    document.addEventListener('DOMContentLoaded', function () {
+      const currentYear = new Date().getFullYear();
+      for (const id of ['calendar-year', 'invoice-year']) {
+        const select = document.getElementById(id);
+        select.innerHTML = [currentYear - 1, currentYear, currentYear + 1]
+          .map((year) => `<option value="${year}">${year}年</option>`).join('');
+        select.value = currentYear;
+      }
+      const currentMonth = new Date().getMonth() + 1;
+      document.getElementById('calendar-month').value = currentMonth;
+      document.getElementById('invoice-month').value = currentMonth;
+      updateCalendar();
+      updateInvoicePreview();
+      loadFareEvidences();
+    });
+
+    window.addEventListener('error', function (event) {
+      showError(event.error || new Error(event.message));
+    });
+  </script>
+</body>
+</html>
