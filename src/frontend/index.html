@@ -28,6 +28,28 @@
       background-color: #fef3c7;
       font-weight: bold;
     }
+    .tab-button {
+      margin-bottom: -1px;
+      border: 1px solid transparent;
+      border-bottom: 0;
+      border-radius: 0.375rem 0.375rem 0 0;
+      padding: 0.5rem 1rem;
+      color: #4b5563;
+      font-weight: 500;
+    }
+    .tab-button:hover {
+      color: #111827;
+      background-color: #f9fafb;
+    }
+    .tab-button[aria-selected="true"] {
+      border-color: #d1d5db;
+      background-color: #ffffff;
+      color: #2563eb;
+    }
+    .tab-button:focus-visible {
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
+    }
   </style>
 </head>
 <body class="bg-gray-50">
@@ -44,29 +66,41 @@
     <main class="flex-1 max-w-6xl mx-auto w-full p-6 space-y-6">
       <div id="error-message" role="alert" class="hidden rounded border border-red-300 bg-red-50 p-4 text-red-800"></div>
       <!-- ナビゲーション -->
-      <div class="flex gap-2 border-b">
+      <div class="flex gap-2 border-b border-gray-300" role="tablist" aria-label="画面の切り替え">
         <button
+          id="calendar-tab"
           onclick="showScreen('calendar')"
-          class="px-4 py-2 font-medium border-b-2 border-blue-600 text-blue-600"
+          class="tab-button"
+          role="tab"
+          aria-controls="calendar-screen"
+          aria-selected="true"
         >
           カレンダー
         </button>
         <button
+          id="invoice-tab"
           onclick="showScreen('invoice')"
-          class="px-4 py-2 font-medium border-b-2 border-transparent text-gray-600 hover:text-gray-900"
+          class="tab-button"
+          role="tab"
+          aria-controls="invoice-screen"
+          aria-selected="false"
         >
           請求書
         </button>
         <button
+          id="setup-tab"
           onclick="showScreen('setup')"
-          class="px-4 py-2 font-medium border-b-2 border-transparent text-gray-600 hover:text-gray-900"
+          class="tab-button"
+          role="tab"
+          aria-controls="setup-screen"
+          aria-selected="false"
         >
           運賃区間設定
         </button>
       </div>
 
       <!-- スクリーン：カレンダー -->
-      <div id="calendar-screen" class="space-y-4">
+      <div id="calendar-screen" class="space-y-4" role="tabpanel" aria-labelledby="calendar-tab">
         <div class="bg-white rounded-lg shadow p-6">
           <!-- 年月選択 -->
           <div class="flex gap-4 mb-6">
@@ -156,7 +190,7 @@
       </div>
 
       <!-- スクリーン：請求書 -->
-      <div id="invoice-screen" style="display: none" class="space-y-4">
+      <div id="invoice-screen" style="display: none" class="space-y-4" role="tabpanel" aria-labelledby="invoice-tab">
         <div class="bg-white rounded-lg shadow p-6">
           <!-- 年月・精算先選択 -->
           <div class="flex gap-4 mb-6">
@@ -217,7 +251,7 @@
       </div>
 
       <!-- スクリーン：運賃区間設定 -->
-      <div id="setup-screen" style="display: none" class="space-y-4">
+      <div id="setup-screen" style="display: none" class="space-y-4" role="tabpanel" aria-labelledby="setup-tab">
         <div class="bg-white rounded-lg shadow p-6">
           <h3 id="fare-form-title" class="text-lg font-bold mb-4">運賃区間情報を登録</h3>
 
@@ -428,6 +462,9 @@
       document.getElementById('calendar-screen').style.display = 'none';
       document.getElementById('invoice-screen').style.display = 'none';
       document.getElementById('setup-screen').style.display = 'none';
+      document.getElementById('calendar-tab').setAttribute('aria-selected', String(screenName === 'calendar'));
+      document.getElementById('invoice-tab').setAttribute('aria-selected', String(screenName === 'invoice'));
+      document.getElementById('setup-tab').setAttribute('aria-selected', String(screenName === 'setup'));
 
       if (screenName === 'calendar') document.getElementById('calendar-screen').style.display = 'block';
       if (screenName === 'invoice') document.getElementById('invoice-screen').style.display = 'block';
